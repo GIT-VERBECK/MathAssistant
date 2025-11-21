@@ -111,63 +111,10 @@ function App() {
       if (stream) {
         streamRef.current = stream
         setIsCameraReady(false)
-        console.log('Stream obtenu, configuration de la vidéo...')
+        console.log('Stream obtenu, affichage de la caméra...')
         
-        // Utiliser setTimeout pour s'assurer que le DOM est prêt
-        setTimeout(() => {
-          if (videoRef.current) {
-            console.log('Attribution du stream à la vidéo')
-            const video = videoRef.current
-            video.srcObject = stream
-            
-            // Afficher la caméra immédiatement
-            setShowCamera(true)
-            
-            // Démarrer la lecture
-            video.play().then(() => {
-              console.log('Vidéo en lecture')
-            }).catch(err => {
-              console.error('Erreur lors du play:', err)
-            })
-            
-            // Vérifier que la vidéo fonctionne
-            const checkVideoReady = () => {
-              if (video.videoWidth > 0 && video.videoHeight > 0) {
-                console.log('Vidéo prête:', {
-                  width: video.videoWidth,
-                  height: video.videoHeight,
-                  readyState: video.readyState
-                })
-                setIsCameraReady(true)
-              } else {
-                // Réessayer après un court délai
-                setTimeout(checkVideoReady, 100)
-              }
-            }
-            
-            video.onloadedmetadata = () => {
-              console.log('Métadonnées vidéo chargées')
-              checkVideoReady()
-            }
-            
-            video.onplaying = () => {
-              console.log('Vidéo en cours de lecture')
-              checkVideoReady()
-            }
-            
-            video.onerror = (err) => {
-              console.error('Erreur vidéo:', err)
-              setCameraError('Erreur lors de l\'affichage de la vidéo.')
-            }
-            
-            // Vérifier immédiatement aussi
-            checkVideoReady()
-          } else {
-            console.warn('videoRef.current est null, affichage de la caméra quand même')
-            setShowCamera(true)
-            setIsCameraReady(true)
-          }
-        }, 100)
+        // Afficher la caméra - useEffect s'occupera de configurer la vidéo
+        setShowCamera(true)
       }
     } catch (error) {
       console.error('Erreur d\'accès à la caméra:', error)
@@ -347,6 +294,58 @@ function App() {
     setError(null)
     setExpandedSteps(new Set([0]))
   }
+
+  // Effet pour configurer la vidéo quand showCamera devient true
+  useEffect(() => {
+    if (showCamera && streamRef.current && videoRef.current) {
+      const video = videoRef.current
+      const stream = streamRef.current
+      
+      console.log('Configuration de la vidéo dans useEffect')
+      video.srcObject = stream
+      setIsCameraReady(false)
+      
+      // Démarrer la lecture
+      video.play().then(() => {
+        console.log('Vidéo en lecture')
+      }).catch(err => {
+        console.error('Erreur lors du play:', err)
+      })
+      
+      // Vérifier que la vidéo fonctionne
+      const checkVideoReady = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          console.log('Vidéo prête:', {
+            width: video.videoWidth,
+            height: video.videoHeight,
+            readyState: video.readyState
+          })
+          setIsCameraReady(true)
+        } else {
+          // Réessayer après un court délai
+          setTimeout(checkVideoReady, 100)
+        }
+      }
+      
+      video.onloadedmetadata = () => {
+        console.log('Métadonnées vidéo chargées')
+        checkVideoReady()
+      }
+      
+      video.onplaying = () => {
+        console.log('Vidéo en cours de lecture')
+        checkVideoReady()
+      }
+      
+      video.onerror = (err) => {
+        console.error('Erreur vidéo:', err)
+        setCameraError('Erreur lors de l\'affichage de la vidéo.')
+      }
+      
+      // Vérifier immédiatement aussi
+      checkVideoReady()
+    }
+  }, [showCamera])
 
   // Cleanup
   useEffect(() => {
