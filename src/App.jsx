@@ -82,17 +82,61 @@ function App() {
   const startCamera = async () => {
     try {
       setCameraError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' }
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        setShowCamera(true)
+      
+      // Vérifier si getUserMedia est disponible
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Votre navigateur ne supporte pas l\'accès à la caméra. Veuillez utiliser un navigateur moderne (Chrome, Firefox, Safari, Edge).')
+        return
+      }
+      
+      // Essayer d'abord avec la caméra arrière (mobile)
+      let stream = null
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' }
+        })
+      } catch (envError) {
+        // Si la caméra arrière échoue, essayer avec n'importe quelle caméra
+        console.log('Caméra arrière non disponible, tentative avec caméra par défaut')
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true 
+          })
+        } catch (defaultError) {
+          throw defaultError
+        }
+      }
+      
+      if (stream) {
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          // Attendre que la vidéo soit prête
+          videoRef.current.onloadedmetadata = () => {
+            setShowCamera(true)
+          }
+        } else {
+          setShowCamera(true)
+        }
       }
     } catch (error) {
       console.error('Erreur d\'accès à la caméra:', error)
-      setCameraError('Impossible d\'accéder à la caméra. Veuillez vérifier les permissions.')
+      
+      let errorMessage = 'Impossible d\'accéder à la caméra.'
+      
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = 'Permission refusée. Veuillez autoriser l\'accès à la caméra dans les paramètres de votre navigateur.'
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = 'Aucune caméra trouvée. Veuillez connecter une caméra à votre appareil.'
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage = 'La caméra est déjà utilisée par une autre application. Veuillez la fermer et réessayer.'
+      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+        errorMessage = 'Les paramètres de la caméra ne sont pas supportés. Veuillez utiliser un autre appareil.'
+      } else if (error.name === 'SecurityError') {
+        errorMessage = 'Erreur de sécurité. L\'application doit être en HTTPS pour accéder à la caméra.'
+      }
+      
+      setCameraError(errorMessage)
     }
   }
 
@@ -346,12 +390,19 @@ function App() {
               ) : showCamera ? (
                 <div className="camera-container">
                   <div className="camera-preview">
-                    <video ref={videoRef} autoPlay playsInline className="camera-video"></video>
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted
+                      className="camera-video"
+                      style={{ width: '100%', maxWidth: '100%', height: 'auto' }}
+                    ></video>
                     <button className="close-camera-btn" onClick={stopCamera} aria-label="Fermer l'appareil photo">
                       ×
                     </button>
                   </div>
-                  <button className="capture-btn" onClick={capturePhoto}>
+                  <button className="capture-btn" onClick={capturePhoto} aria-label="Prendre une photo">
                   📹
                   </button>
                   {cameraError && <p className="camera-error">{cameraError}</p>}
