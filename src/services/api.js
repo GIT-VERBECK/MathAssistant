@@ -3,7 +3,13 @@
  * Toutes les fonctions retournent des Promises
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Utiliser le proxy Vite en développement, ou l'URL complète en production
+// En production, VITE_API_BASE_URL doit être défini dans les variables d'environnement Vercel
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+  (import.meta.env.DEV ? '/api' : (() => {
+    console.warn('VITE_API_BASE_URL non défini en production. Veuillez configurer cette variable dans Vercel.');
+    return 'http://localhost:5000/api'; // Fallback (ne devrait pas arriver en production)
+  })());
 
 /**
  * Convertit une image (base64 ou File) en FormData pour l'envoi
@@ -35,6 +41,12 @@ const imageToFormData = (imageData) => {
  * Gère les erreurs de l'API et retourne des messages utilisateur clairs
  */
 const handleApiError = (error) => {
+  // Si c'est une erreur de fetch (Failed to fetch)
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    return `Impossible de se connecter au serveur backend. Vérifiez que le serveur est démarré sur ${backendUrl}`;
+  }
+  
   if (error.response) {
     // Erreur de réponse du serveur
     const status = error.response.status;
@@ -61,7 +73,8 @@ const handleApiError = (error) => {
     }
   } else if (error.request) {
     // Pas de réponse du serveur
-    return 'Erreur de connexion. Vérifiez votre connexion internet.';
+    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    return `Erreur de connexion. Vérifiez que le serveur backend est démarré sur ${backendUrl}`;
   } else {
     // Erreur lors de la configuration de la requête
     return error.message || 'Une erreur inattendue est survenue.';
@@ -93,6 +106,11 @@ export const getLaTeXFromImage = async (imageData) => {
       confidence: data.confidence || 0,
     };
   } catch (error) {
+    // Si c'est une erreur de fetch (Failed to fetch), la gérer spécifiquement
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      throw new Error(`Impossible de se connecter au serveur backend. Vérifiez que le serveur est démarré sur ${backendUrl}`);
+    }
     const errorMessage = handleApiError(error);
     throw new Error(errorMessage);
   }
@@ -129,6 +147,11 @@ export const analyzeImage = async (imageData, latex = null) => {
       latex: data.latex || '',
     };
   } catch (error) {
+    // Si c'est une erreur de fetch (Failed to fetch), la gérer spécifiquement
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      throw new Error(`Impossible de se connecter au serveur backend. Vérifiez que le serveur est démarré sur ${backendUrl}`);
+    }
     const errorMessage = handleApiError(error);
     throw new Error(errorMessage);
   }

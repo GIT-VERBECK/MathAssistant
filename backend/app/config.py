@@ -31,7 +31,11 @@ class Config:
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
     
     # CORS
-    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    # Support pour plusieurs origines séparées par des virgules
+    # En production, inclure l'URL Vercel dans CORS_ORIGINS (ex: https://mathassistant.vercel.app)
+    # Format: "https://app1.vercel.app,https://app2.vercel.app"
+    _cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+    CORS_ORIGINS = [origin.strip() for origin in _cors_origins_str.split(",") if origin.strip()]
     
     # Image upload
     MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", 10485760))  # 10MB par défaut

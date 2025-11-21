@@ -60,8 +60,18 @@ class LatexExtractionService:
             "formats": ["text", "latex_styled", "latex_simplified"],
             "data_options": {
                 "include_asciimath": True,
-                "include_latex": True
-            }
+                "include_latex": True,
+                "handwritten_equation": True,  # Indique que c'est peut-être manuscrit
+                "include_annotations": True,  # Inclut plus de détails pour manuscrits
+                "enable_tables_fallback": True,  # Meilleure détection des structures
+                "format_options": {
+                    "text": {
+                        "math_inline_delimiters": ["$", "$"],
+                        "rm_spaces": False
+                    }
+                }
+            },
+            "handwritten": True  # Mode manuscrit activé
         }
         
         try:
@@ -81,12 +91,20 @@ class LatexExtractionService:
                     result.get("text", "")
                 )
                 
+                # Post-traitement pour manuscrits
+                if latex:
+                    latex = self._post_process_handwritten_latex(latex.strip())
+                
                 confidence = result.get("confidence", 0.0)
                 if "is_printed" in result:
-                    confidence = 0.95 if result["is_printed"] else 0.85
+                    # Si manuscrit, confiance légèrement réduite mais toujours utilisable
+                    confidence = 0.95 if result["is_printed"] else 0.82
+                elif confidence == 0.0:
+                    # Par défaut pour manuscrits
+                    confidence = 0.80
                 
                 return {
-                    "latex": latex.strip(),
+                    "latex": latex,
                     "confidence": min(max(confidence, 0.0), 1.0)
                 }
                 
@@ -103,7 +121,7 @@ class LatexExtractionService:
         except httpx.TimeoutException:
             raise Exception("Timeout lors de l'appel à Mathpix API.")
         except Exception as e:
-            raise Exception(f"Erreur lors de l'extraction LaTeX avec Mathpix: {str(e)}")
+            raise Exception(f"Erreur lors de l'extraction {str(e)}")
     
     def _extract_with_openai_vision(self, image_bytes: bytes) -> Dict[str, any]:
         """Extrait le LaTeX avec OpenAI Vision API"""
@@ -128,44 +146,67 @@ class LatexExtractionService:
 
 Extrait le code LaTeX de cette image mathématique. L'image peut être manuscrite ou imprimée.
 
-INSTRUCTIONS IMPORTANTES :
-1. Si l'image est MANUSCRITE, sois particulièrement attentif aux symboles et caractères similaires :
+⚠️ INSTRUCTIONS CRITIQUES POUR LES MANUSCRITS ⚠️
+
+1. PUISSANCES ET EXPOSANTS (PRIORITÉ ABSOLUE) :
+   - Les petits chiffres ÉCRITS AU-DESSUS d'un nombre ou d'une lettre sont TOUJOURS des exposants
+   - Même si l'exposant est mal aligné, légèrement décalé, ou mal formé, c'est TOUJOURS un exposant
+   - Si tu vois un chiffre positionné AU-DESSUS ou légèrement plus haut que le nombre de base, c'est un exposant
+   - IMPORTANT : Dans "37 - 4^2", le "2" est un exposant car il est écrit AU-DESSUS du "4"
+   - Exemples manuscrits typiques :
+     * "4 avec un petit 2 en haut" → 4^2 ou 4^{2}
+     * "37 - 4²" ou "37 - 4 avec 2 en haut" → 37-4^{2} ou 37 - 4^2
+     * "x avec un petit 3 en haut" → x^3 ou x^{3}
+     * "x²" → x^{2} ou x^2
+     * "a³" → a^{3} ou a^3
+   - Si un chiffre suit immédiatement un nombre sans opérateur visible ET qu'il est positionné plus haut → exposant
+   - Pattern courant : "nombre nombre" où le second nombre est plus petit/haut → puissance
+
+2. CARACTÈRES SIMILAIRES (MANUSCRITS) :
    - Distingue bien : 0 (zéro) vs O (lettre), 1 (un) vs l (L minuscule), 2 vs Z, 5 vs S
-   - Les fractions manuscrites : reconnais / comme \frac{}{}
-   - Les puissances : reconnais les petits chiffres en haut comme des exposants (^)
+   - Le contexte aide : si c'est dans une opération mathématique, c'est probablement un chiffre
+
+3. SYMBOLES MATHÉMATIQUES :
+   - Les fractions manuscrites : reconnais / comme \frac{}{} ou laisse /
+   - Les puissances : TOUJOURS utiliser ^ pour les exposants
    - Les indices : reconnais les petits chiffres en bas comme des indices (_)
    - Les racines : reconnais les symboles √ comme \sqrt
-   - Les intégrales, sommes, produits : reconnais les symboles ∫, Σ, Π
+   - Les intégrales, sommes, produits : reconnais ∫, Σ, Π
    - Les lettres grecques manuscrites : α, β, γ, δ, θ, π, etc.
 
-2. Si l'image est IMPRIMÉE, extrais fidèlement tous les symboles mathématiques.
+4. OPÉRATIONS DE BASE :
+   - + (addition), - (soustraction), × ou * (multiplication), ÷ ou / (division), = (égal)
+   - Les espaces autour des opérateurs sont optionnels
 
-3. Format de réponse :
-   - Réponds UNIQUEMENT avec le code LaTeX pur
-   - Pas d'explication, pas de texte supplémentaire, pas de markdown
-   - Si plusieurs équations, sépare-les par des sauts de ligne
+5. Format de réponse :
+   - Réponds UNIQUEMENT avec le code LaTeX pur, sans formatage markdown
+   - Pas d'explication, pas de texte supplémentaire
    - Utilise la syntaxe LaTeX standard :
-     * Fractions : \frac{numerateur}{denominateur}
-     * Puissances : x^{2} ou x^2
+     * Puissances : x^{2} ou x^2 (TOUJOURS avec ^)
      * Indices : x_{i} ou x_i
+     * Fractions : \frac{numerateur}{denominateur} ou a/b
      * Racines : \sqrt{x} ou \sqrt[n]{x}
      * Intégrales : \int, \int_{a}^{b}
      * Sommes : \sum_{i=1}^{n}
      * Produits : \prod_{i=1}^{n}
-     * Limites : \lim_{x \to \infty}
-     * Fonctions trigonométriques : \sin, \cos, \tan, etc.
-     * Lettres grecques : \alpha, \beta, \gamma, \delta, \theta, \pi, etc.
 
-4. Si tu ne peux vraiment pas extraire de LaTeX, réponds avec "ERREUR".
+6. EXEMPLES SPÉCIFIQUES DE MANUSCRITS (RÉFÉRENCE) :
+   - "37 - 4²" ou "37 - 4 avec 2 en haut" → 37-4^{2} ou 37 - 4^2
+   - "37 - 4 2" (sans opérateur entre 4 et 2, 2 est plus haut) → 37-4^{2}
+   - "x² + 5" ou "x avec 2 en haut plus 5" → x^{2}+5 ou x^2 + 5
+   - "2³" ou "2 avec 3 en haut" → 2^{3} ou 2^3
+   - "a²b³" → a^{2}b^{3} ou a^2 b^3
+   - "x + 1 = 0" → x+1=0 ou x + 1 = 0
+   - "5² - 3" → 5^{2}-3 ou 5^2 - 3
+   - "10 - 2²" → 10-2^{2} ou 10 - 2^2
 
-Exemples de conversions :
-- "x au carré" → x^2
-- "x divisé par 2" → \frac{x}{2} ou x/2
-- "racine de x" → \sqrt{x}
-- "intégrale de f(x)" → \int f(x) dx
-- "somme de i=1 à n" → \sum_{i=1}^{n}
-- "pi" → \pi
-- "alpha" → \alpha"""
+7. DÉTECTION DES EXPOSANTS MANUSCRITS :
+   - Examine attentivement la POSITION VERTICALE des chiffres
+   - Si un chiffre est clairement plus haut que le chiffre précédent → exposant
+   - Si deux chiffres sont côte à côte sans opérateur, et le second est plus petit/haut → exposant
+   - Même si l'alignement n'est pas parfait (typique des manuscrits), détecte les exposants par position
+
+7. Si tu ne peux vraiment pas extraire de LaTeX, réponds avec "ERREUR"."""
         
         try:
             response = client.chat.completions.create(
@@ -176,7 +217,14 @@ Exemples de conversions :
                         "content": """Tu es un expert en reconnaissance d'écriture mathématique manuscrite et imprimée. 
 Tu es spécialisé dans la conversion d'équations mathématiques (manuscrites ou imprimées) en code LaTeX.
 Tu réponds UNIQUEMENT avec le code LaTeX pur, sans formatage markdown, sans explication, sans texte supplémentaire.
-Tu es particulièrement doué pour reconnaître les symboles mathématiques manuscrits même s'ils sont mal formés."""
+
+TU ES TRÈS DOUÉ POUR :
+- Reconnaître les PUISSANCES et EXPOSANTS manuscrits (petits chiffres en haut) et les convertir en notation ^
+- Distinguer les chiffres manuscrits des lettres (0 vs O, 1 vs l, 2 vs Z, 5 vs S)
+- Identifier les symboles mathématiques même s'ils sont mal formés ou mal alignés
+- Extraire fidèlement les opérations arithmétiques de base (+, -, ×, ÷, =)
+
+RÈGLE D'OR : Si tu vois un petit chiffre ÉCRIT AU-DESSUS d'un nombre ou d'une lettre, c'est TOUJOURS un exposant. Utilise ^ pour le représenter."""
                     },
                     {
                         "role": "user",
@@ -209,12 +257,15 @@ Tu es particulièrement doué pour reconnaître les symboles mathématiques manu
             
             # Vérifie si c'est une erreur
             if "ERREUR" in latex.upper() or not latex:
-                raise Exception("Impossible d'extraire le LaTeX depuis l'image. Essayez avec une image plus nette ou une écriture plus claire.")
+                raise Exception("Impossible d'extraire l'équation depuis l'image. Essayez avec une image plus nette ou une écriture plus claire.")
             
             # Nettoie le LaTeX (enlève les espaces superflus, normalise)
             latex = latex.strip()
             # Enlève les sauts de ligne multiples
             latex = ' '.join(latex.split())
+            
+            # Post-traitement pour corriger les erreurs communes de manuscrits
+            latex = self._post_process_handwritten_latex(latex)
             
             # Confidence basée sur la longueur et la présence de caractères LaTeX typiques
             confidence = 0.80  # Par défaut (plus conservateur pour le manuscrit)
@@ -247,7 +298,87 @@ Tu es particulièrement doué pour reconnaître les symboles mathématiques manu
             elif "timeout" in error_msg.lower():
                 raise Exception("Timeout lors de l'appel à OpenAI API.")
             else:
-                raise Exception(f"Erreur lors de l'extraction LaTeX avec OpenAI: {error_msg}")
+                raise Exception(f"Erreur lors de l'extraction : {error_msg}")
+    
+    def _post_process_handwritten_latex(self, latex: str) -> str:
+        """
+        Post-traitement pour corriger les erreurs communes de reconnaissance manuscrite
+        
+        Args:
+            latex: Code LaTeX brut
+            
+        Returns:
+            Code LaTeX corrigé
+        """
+        import re
+        
+        # Remplacer les caractères unicode de puissance courants par ^
+        # Exemples: ², ³, ⁴, etc.
+        power_chars = {
+            '²': '^2',
+            '³': '^3',
+            '⁴': '^4',
+            '⁵': '^5',
+            '⁶': '^6',
+            '⁷': '^7',
+            '⁸': '^8',
+            '⁹': '^9',
+            '¹': '^1',
+            '⁰': '^0'
+        }
+        
+        for char, replacement in power_chars.items():
+            latex = latex.replace(char, replacement)
+        
+        # Corriger les patterns où un exposant est écrit comme un nombre normal
+        # Pattern: "4 2" ou "4(2)" après un nombre dans une soustraction peut être une puissance
+        # Exemple: "37 - 4 2" → "37 - 4^2"
+        # Mais seulement si c'est suivi d'un opérateur ou d'une fin d'expression
+        
+        # Pattern pour détecter "nombre espace petit_chiffre" suivi d'opérateur ou fin
+        # Exemple: "4 2 -" ou "4 2 ="
+        pattern_power = r'(\d+)\s+([0-9])(?=\s*[+\-=×*÷/,\)]|\s*$|)'
+        
+        # Vérifier si le contexte suggère une puissance (petit nombre, 2-9)
+        # On remplace seulement si le nombre suivant est 0-9 et que le contexte est bon
+        def replace_potential_power(match):
+            base = match.group(1)
+            exponent = match.group(2)
+            # Si l'exposant est 2-9, c'est probablement une puissance
+            if exponent in '23456789':
+                return f'{base}^{exponent}'
+            return match.group(0)
+        
+        # Appliquer la correction avec prudence (seulement en contexte clair)
+        latex = re.sub(pattern_power, replace_potential_power, latex)
+        
+        # Corriger les cas où "^2" ou "^3" sont écrits comme "2" ou "3" collés
+        # Pattern: "4^ 2" → "4^2" ou "4 ^2" → "4^2"
+        latex = re.sub(r'\^\s+(\d+)', r'^{\1}', latex)
+        latex = re.sub(r'\^\s*(\d+)', r'^{\1}', latex)
+        
+        # Normaliser les espaces autour des opérateurs
+        latex = re.sub(r'\s*([+\-=×*÷/])\s*', r' \1 ', latex)
+        
+        # Corriger les accolades autour des exposants simples pour meilleure lisibilité
+        # x^{2} → x^2 (si exposant simple d'un seul chiffre)
+        latex = re.sub(r'(\w+)\{(\d)\}', r'\1^{\2}', latex)
+        # Mais garder les accolades pour les exposants complexes (plusieurs chiffres ou expressions)
+        
+        # Corriger les patterns communs de manuscrits mal reconnus
+        # "4 2" peut devenir "42" ou "4^2" selon le contexte
+        # Si on voit "nombre-nombre espace nombre" suivi d'un opérateur, c'est peut-être une puissance
+        # Exemple: "37-4 2=" → "37-4^2="
+        pattern_in_expression = r'(\d+)\s+([0-9])(?=\s*[=\+\-\)])'
+        latex = re.sub(pattern_in_expression, lambda m: f'{m.group(1)}^{m.group(2)}' if m.group(2) in '23456789' else m.group(0), latex)
+        
+        # Enlever les espaces superflus mais garder les espaces autour des opérateurs
+        latex = ' '.join(latex.split())
+        
+        # Normaliser les espaces autour des opérateurs une dernière fois
+        latex = re.sub(r'\s*([+\-=×*÷/])\s*', r' \1 ', latex)
+        
+        return latex.strip()
 
 
 # Instance globale

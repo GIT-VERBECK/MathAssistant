@@ -7,7 +7,7 @@ import { generatePDFSimple } from './utils/pdfGenerator'
 
 function App() {
   // États de navigation
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPage] = useState(0) // 0: Onboarding, 1: Capture, 2: Confirmation, 3: Loading, 4: Results, 5: About
   
   // États d'image
   const [capturedImage, setCapturedImage] = useState(null)
@@ -42,6 +42,14 @@ function App() {
   const handleSkip = () => {
     setCurrentPage(0)
     resetState()
+  }
+
+  const handleOpenAbout = () => {
+    setCurrentPage(5)
+  }
+
+  const handleCloseAbout = () => {
+    setCurrentPage(0)
   }
 
   // Gestion de l'image
@@ -179,18 +187,22 @@ function App() {
   }
 
   // Export PDF
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!problemData) return
     
     try {
-      generatePDFSimple({
+      await generatePDFSimple({
         problem: problemData.problem,
-        latex: problemData.latex || extractedLaTeX,
+        latex: problemData.latex,
+        extractedLaTeX: extractedLaTeX,
         solution: problemData.solution,
         steps: problemData.steps || [],
+        result: problemData.result,
+        answer: problemData.answer,
       })
-    } catch {
-      setError('Erreur lors de la génération du PDF')
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      setError(`Erreur lors de la génération du PDF: ${error.message || 'Erreur inconnue'}`)
     }
   }
 
@@ -221,14 +233,36 @@ function App() {
     <div className="home-page">
       {/* Header */}
       <header className="header">
+        {currentPage === 0 && (
+          <div className="menu-container">
+            <button className="about-header-btn" onClick={handleOpenAbout}>
+              À propos
+            </button>
+            <div className="menu-icon-container">
+              <button className="menu-icon-btn" aria-label="Menu">
+                ☰
+              </button>
+              <div className="menu-dropdown">
+                <button className="menu-dropdown-btn" onClick={handleOpenAbout}>
+                  À propos
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {currentPage === 1 && (
           <button className="back-header-btn" onClick={handleSkip}>
-            ← Back
+            ← Retour
           </button>
         )}
         {currentPage === 2 && (
           <button className="back-header-btn" onClick={handleEditLaTeX}>
             ← Modifier
+          </button>
+        )}
+        {currentPage === 5 && (
+          <button className="back-header-btn" onClick={handleCloseAbout}>
+            ← Retour
           </button>
         )}
       </header>
@@ -268,26 +302,26 @@ function App() {
                 <line x1="20" y1="100" x2="180" y2="100" stroke="#1a4d7a" strokeWidth="3" />
                 <line x1="20" y1="110" x2="180" y2="110" stroke="#00a8ff" strokeWidth="3" />
               </svg>
-              <p className="graphic-text">Complex Knot → Straight Line</p>
+              {/* <p className="graphic-text">Problème Complexe → Solution Simple</p> */}
             </div>
 
             <h1 className="headline">
-              Math homework just<br />
-              got easier.
+              Math Assistant <br/> Votre guide Assistant IA 
             </h1>
 
             <p className="description">
-              Snap a photo of any math problem, from<br />
-              simple algebra to complex calculus, and get<br />
-              instant, step-by-step solutions.
+              Prenez une photo de n'importe quel problème mathématique, de<br />
+              l'algèbre simple au calcul complexe, et obtenez des<br />
+              solutions instantanées étape par étape.
             </p>
+         
 
             <div className="pagination">
               <span className="dot active"></span>
               <span className="dot"></span>
             </div>
 
-            <button className="cta-button" onClick={handleNext}>Next</button>
+            <button className="cta-button" onClick={handleNext}>Suivant</button>
           </>
         )}
 
@@ -303,8 +337,8 @@ function App() {
               {capturedImage ? (
                 <div className="image-preview-container">
                   <div className="image-preview-card">
-                    <img src={capturedImage} alt="Captured math problem" className="captured-image" />
-                    <button className="remove-image-btn" onClick={removeImage} aria-label="Remove image">
+                    <img src={capturedImage} alt="Problème mathématique capturé" className="captured-image" />
+                    <button className="remove-image-btn" onClick={removeImage} aria-label="Supprimer l'image">
                       ×
                     </button>
                   </div>
@@ -313,12 +347,12 @@ function App() {
                 <div className="camera-container">
                   <div className="camera-preview">
                     <video ref={videoRef} autoPlay playsInline className="camera-video"></video>
-                    <button className="close-camera-btn" onClick={stopCamera} aria-label="Close camera">
+                    <button className="close-camera-btn" onClick={stopCamera} aria-label="Fermer l'appareil photo">
                       ×
                     </button>
                   </div>
                   <button className="capture-btn" onClick={capturePhoto}>
-                    📷
+                  📹
                   </button>
                   {cameraError && <p className="camera-error">{cameraError}</p>}
                 </div>
@@ -353,19 +387,19 @@ function App() {
               )}
             </div>
 
-            <h1 className="headline">Snap a Pic, Get the Answer</h1>
+            <h1 className="headline">Prenez une Photo, Obtenez la Réponse</h1>
 
             <p className="description">
-              Use your camera to capture any printed or handwritten math equation. Our AI will scan and solve it in seconds.
+              Utilisez votre appareil photo pour capturer n'importe quelle équation mathématique imprimée ou manuscrite. Notre IA la scannera et la résoudra en quelques secondes.
             </p>
 
             {!capturedImage && !showCamera && (
               <div className="action-buttons">
                 <button className="action-btn upload-btn" onClick={handleUploadClick}>
-                  📁 Upload Image
+                📰 Télécharger une Image
                 </button>
                 <button className="action-btn camera-btn" onClick={startCamera}>
-                  📷 Take Photo
+                📹 Prendre une Photo
                 </button>
               </div>
             )}
@@ -384,7 +418,7 @@ function App() {
                 onClick={handleAnalyzeImage}
                 disabled={isExtractingLaTeX}
               >
-                {isExtractingLaTeX ? 'Extraction...' : 'Analyze Image'}
+                {isExtractingLaTeX ? 'Extraction...' : 'Analyser l\'Image'}
               </button>
             )}
           </>
@@ -421,7 +455,7 @@ function App() {
                 onClick={handleConfirmAndSolve}
                 disabled={isAnalyzing || !extractedLaTeX}
               >
-                {isAnalyzing ? 'Résolution...' : 'Confirmer et Résoudre'}
+                {isAnalyzing ? 'Résolution...' : 'Confirmer'}
               </button>
             </div>
           </div>
@@ -458,60 +492,55 @@ function App() {
               <button className="back-btn" onClick={() => setCurrentPage(1)}>
                 ←
               </button>
-              <h2 className="results-title">AI Solution Steps</h2>
+              <h2 className="results-title">Demarche de Solution</h2>
               <button className="menu-btn" onClick={handleDownloadPDF} title="Télécharger PDF">
-                📄
+              📝
               </button>
             </header>
 
             <div className="results-content">
               <div className="problem-card">
-                <p className="card-label">Original Problem</p>
+                <p className="card-label">Equation Détectée</p>
                 <div className="problem-equation-container">
                   <LaTeXRenderer latex={problemData.latex || extractedLaTeX || problemData.problem} />
                 </div>
                 {problemData.solution && (
                   <p className="problem-solution">Solution: {problemData.solution}</p>
                 )}
-                <div className="problem-icon">📄</div>
+                <div className="problem-icon"></div>
               </div>
 
-              <h3 className="steps-heading">Step-by-step Solution</h3>
+              <h3 className="steps-heading">Demarche de Solution</h3>
 
               {problemData.steps && problemData.steps.length > 0 ? (
                 problemData.steps.map((step, index) => (
                   <div 
                     key={index} 
-                    className={`step-card ${expandedSteps.has(index) ? 'expanded' : ''}`}
+                    className="step-card expanded step-card-visible"
                   >
-                    <div className="step-header" onClick={() => toggleStep(index)}>
-                      <div className={`step-number ${expandedSteps.has(index) ? 'active' : ''}`}>
+                    <div className="step-header">
+                      <div className="step-number active">
                         {index + 1}
                       </div>
-                      <h4 className="step-title">{step.title || `Step ${index + 1}`}</h4>
-                      <span className="step-chevron">
-                        {expandedSteps.has(index) ? '▲' : '▼'}
-                      </span>
+                      <h4 className="step-title">{step.title || `Étape ${index + 1}`}</h4>
                     </div>
-                    {expandedSteps.has(index) && (
-                      <div className="step-content">
-                        {step.description && (
-                          <p className="step-text">{step.description}</p>
-                        )}
-                        {step.formula && (
-                          <div className="step-formula-container">
-                            <LaTeXRenderer latex={step.formula} />
-                          </div>
-                        )}
-                        {step.explanation && (
-                          <p className="step-text">{step.explanation}</p>
-                        )}
-                      </div>
-                    )}
+                    <div className="step-content">
+                      {step.description && (
+                        <p className="step-text">{step.description}</p>
+                      )}
+                      {step.formula && (
+                        <div className="step-formula-container">
+                          <LaTeXRenderer latex={step.formula} />
+                        </div>
+                      )}
+                      {step.explanation && (
+                        <p className="step-text">{step.explanation}</p>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (
-                <div className="step-card expanded">
+                <div className="step-card expanded step-card-visible">
                   <div className="step-header">
                     <div className="step-number active">1</div>
                     <h4 className="step-title">Solution</h4>
@@ -523,12 +552,254 @@ function App() {
                   </div>
                 </div>
               )}
+
+              {/* Solution Finale */}
+              {(() => {
+                // Déterminer le résultat final à afficher
+                let finalResult = null;
+                const genericMessages = ['Résolution disponible', 'Solution générée avec succès', 'Solution disponible', 'Non disponible'];
+                const originalEquation = problemData.latex || extractedLaTeX || problemData.problem || '';
+                
+                // Fonction pour normaliser une formule LaTeX pour comparaison
+                const normalizeFormula = (str) => {
+                  if (!str) return '';
+                  return str
+                    .replace(/\s+/g, '') // Retirer tous les espaces
+                    .toLowerCase()
+                    .trim();
+                };
+                
+                // Fonction pour extraire la structure principale d'une formule (sans les valeurs numériques)
+                const extractStructure = (formula) => {
+                  if (!formula) return '';
+                  return formula
+                    .replace(/\d+/g, 'N') // Remplacer tous les nombres par 'N'
+                    .replace(/\s+/g, '')
+                    .toLowerCase();
+                };
+                
+                // Fonction pour vérifier si une formule est un résultat calculé (différent de l'équation originale)
+                const isCalculatedResult = (formula) => {
+                  if (!formula || !originalEquation) return false;
+                  
+                  // Normaliser les deux formules pour comparaison
+                  const normalizedFormula = normalizeFormula(formula);
+                  const normalizedOriginal = normalizeFormula(originalEquation);
+                  
+                  // Si elles sont identiques, ce n'est pas un résultat calculé
+                  if (normalizedFormula === normalizedOriginal) {
+                    return false;
+                  }
+                  
+                  // Vérifier si c'est juste une simplification (même structure, valeurs différentes)
+                  const formulaStructure = extractStructure(formula);
+                  const originalStructure = extractStructure(originalEquation);
+                  
+                  // Si les structures sont identiques, c'est juste une simplification, pas un résultat calculé
+                  if (formulaStructure === originalStructure) {
+                    return false;
+                  }
+                  
+                  // Vérifier si la formule est très similaire à l'originale (plus de 85% de similarité)
+                  // Si oui, c'est probablement juste une simplification
+                  const minLength = Math.min(normalizedFormula.length, normalizedOriginal.length);
+                  const maxLength = Math.max(normalizedFormula.length, normalizedOriginal.length);
+                  
+                  if (minLength > 0 && maxLength > 0) {
+                    let matches = 0;
+                    for (let i = 0; i < minLength; i++) {
+                      if (normalizedFormula[i] === normalizedOriginal[i]) {
+                        matches++;
+                      }
+                    }
+                    const similarity = matches / maxLength;
+                    if (similarity > 0.85) {
+                      return false; // Plus de 85% de similarité = probablement juste une simplification
+                    }
+                  }
+                  
+                  // Si c'est un résultat numérique simple (pas de racines, fractions complexes, etc.), c'est un résultat calculé
+                  if (isNumericResult(formula)) {
+                    return true;
+                  }
+                  
+                  // Si la formule est beaucoup plus courte que l'originale, c'est probablement un résultat calculé
+                  if (normalizedFormula.length < normalizedOriginal.length * 0.7) {
+                    return true;
+                  }
+                  
+                  // Sinon, considérer comme résultat calculé seulement si vraiment différent
+                  return true;
+                };
+                
+                // Fonction pour vérifier si une formule contient un résultat numérique simple
+                const isNumericResult = (formula) => {
+                  if (!formula) return false;
+                  // Vérifier si la formule est principalement numérique (pas d'opérations non résolues)
+                  const hasUnresolvedOps = /[\^_\\]/.test(formula) || 
+                                         formula.includes('sqrt') || 
+                                         formula.includes('frac');
+                  return !hasUnresolvedOps && /^[\d\s+\-*/=().]+$/.test(formula);
+                };
+                
+                // 1. Vérifier si problemData a un champ result ou answer
+                if (problemData.result) {
+                  finalResult = problemData.result;
+                } else if (problemData.answer) {
+                  finalResult = problemData.answer;
+                }
+                // 2. Si la solution n'est pas un message générique, l'utiliser
+                else if (problemData.solution && !genericMessages.some(msg => problemData.solution.includes(msg))) {
+                  finalResult = problemData.solution;
+                } 
+                // 3. Chercher dans les étapes une formule qui est un résultat calculé
+                else if (problemData.steps && problemData.steps.length > 0) {
+                  // Chercher d'abord dans toutes les étapes une formule qui est différente de l'originale
+                  for (let i = problemData.steps.length - 1; i >= 0; i--) {
+                    const step = problemData.steps[i];
+                    
+                    // Vérifier les champs result ou answer de l'étape
+                    if (step.result) {
+                      finalResult = step.result;
+                      break;
+                    } else if (step.answer) {
+                      finalResult = step.answer;
+                      break;
+                    }
+                    
+                    // Vérifier si la formule est un résultat calculé
+                    if (step.formula && isCalculatedResult(step.formula)) {
+                      // Si c'est un résultat numérique simple, l'utiliser
+                      if (isNumericResult(step.formula)) {
+                        finalResult = step.formula;
+                        break;
+                      }
+                      // Sinon, vérifier si c'est la dernière étape avec une formule différente
+                      if (i === problemData.steps.length - 1) {
+                        finalResult = step.formula;
+                        break;
+                      }
+                    }
+                    
+                    // Chercher dans l'explication un résultat final mentionné (ex: "obtenons 21" ou "= 21" ou "≈ 4.5528")
+                    if (step.explanation) {
+                      // Patterns plus larges pour trouver le résultat, y compris les approximations
+                      const patterns = [
+                        /(?:obtenons|donne|résultat|égal|=\s*|vaut|est\s+égal\s+à|≈|environ|approximativement)\s*(\d+(?:\.\d+)?)/i,
+                        /=\s*(\d+(?:\.\d+)?)/,
+                        /(\d+(?:\.\d+)?)\s*(?:est|vaut|donne)/i,
+                        /(?:le\s+)?résultat\s+(?:est|vaut|donne|≈)\s+(\d+(?:\.\d+)?)/i,
+                        /(?:pour\s+obtenir|on\s+obtient|on\s+trouve)\s+(?:environ|≈|approximativement)?\s*(\d+(?:\.\d+)?)/i
+                      ];
+                      
+                      for (const pattern of patterns) {
+                        const resultMatch = step.explanation.match(pattern);
+                        if (resultMatch) {
+                          finalResult = resultMatch[1];
+                          break;
+                        }
+                      }
+                      
+                      if (finalResult) break;
+                    }
+                    
+                    // Chercher aussi dans la description
+                    if (step.description) {
+                      const patterns = [
+                        /(?:obtenons|donne|résultat|égal|=\s*|vaut|est\s+égal\s+à|≈|environ|approximativement)\s*(\d+(?:\.\d+)?)/i,
+                        /=\s*(\d+(?:\.\d+)?)/,
+                        /(\d+(?:\.\d+)?)\s*(?:est|vaut|donne)/i,
+                        /(?:pour\s+obtenir|on\s+obtient|on\s+trouve)\s+(?:environ|≈|approximativement)?\s*(\d+(?:\.\d+)?)/i
+                      ];
+                      
+                      for (const pattern of patterns) {
+                        const resultMatch = step.description.match(pattern);
+                        if (resultMatch) {
+                          finalResult = resultMatch[1];
+                          break;
+                        }
+                      }
+                      
+                      if (finalResult) break;
+                    }
+                  }
+                  
+                  // Si on n'a toujours pas trouvé, prendre la formule de la dernière étape
+                  // MAIS seulement si elle est différente de l'équation originale
+                  if (!finalResult) {
+                    const lastStep = problemData.steps[problemData.steps.length - 1];
+                    if (lastStep.formula && isCalculatedResult(lastStep.formula)) {
+                      finalResult = lastStep.formula;
+                    }
+                  }
+                }
+                
+                // Afficher le résultat final
+                // Si on a un résultat et qu'il est différent de l'équation originale, l'afficher
+                if (finalResult && isCalculatedResult(finalResult)) {
+                  return (
+                    <div className="final-solution-card">
+                      <h4 className="final-solution-title">Résultat Final</h4>
+                      <div className="final-solution-content">
+                        {/* Essayer de détecter si la solution contient du LaTeX */}
+                        {finalResult.includes('\\') || 
+                         finalResult.includes('frac') || 
+                         finalResult.includes('sqrt') ||
+                         finalResult.includes('^') ||
+                         finalResult.includes('_') ||
+                         /[{}]/.test(finalResult) ? (
+                          <div className="final-solution-formula">
+                            <LaTeXRenderer latex={finalResult} />
+                          </div>
+                        ) : (
+                          <p className="final-solution-text">{finalResult}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                
+                // Si on n'a pas de résultat calculé, ne rien afficher
+                // (l'équation originale est déjà affichée dans la section "Equation Détectée")
+                return null;
+              })()}
             </div>
 
             <div className="bottom-nav">
               <button className="nav-btn download-pdf-btn" onClick={handleDownloadPDF}>
-                📄 Télécharger PDF
+              📝 Télécharger PDF
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Page 5 - À propos */}
+        {currentPage === 5 && (
+          <div className="about-page">
+            <div className="about-wrapper">
+              <div className="about-header">
+                <h1 className="about-title">À propos</h1>
+              </div>
+
+              <div className="about-info">
+                
+                <h2 className="creator-name">JEAN-MARC VERBECK</h2>
+                <p className="creator-detail">Développeur Full Stack</p>
+                <p className="creator-detail">🎓 ISIG-GOMA</p>
+              </div>
+
+              <p className="creator-bio-text">
+                Passionné par le <strong>réseau informatique</strong>, la <strong>programmation web</strong> et les <strong>nouvelles technologies</strong>.
+              </p>
+
+              <div className="tech-list">
+                <span className="tech-badge">React</span>
+                <span className="tech-badge">FastAPI</span>
+                <span className="tech-badge">OpenAI</span>
+                <span className="tech-badge">WolframAlpha</span>
+              </div>
+
+              <p className="about-version">Version 1.0.0</p>
             </div>
           </div>
         )}
@@ -538,3 +809,4 @@ function App() {
 }
 
 export default App
+

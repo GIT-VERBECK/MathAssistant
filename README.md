@@ -174,3 +174,54 @@ MathAssistant/
 │   └── README.md          # Documentation backend
 └── README.md              # Ce fichier
 ```
+
+## 🚀 Déploiement
+
+L'application est configurée pour être déployée sur :
+- **Frontend** : [Vercel](https://vercel.com/)
+- **Backend** : [Render](https://render.com/)
+
+### Guides de déploiement
+
+- 🚀 **[Déploiement rapide (10 min)](./QUICK_DEPLOY.md)** - Pour les impatients
+- 📖 **[Guide complet](./DEPLOYMENT.md)** - Guide détaillé pas-à-pas
+- ✅ **[Checklist de déploiement](./DEPLOYMENT_CHECKLIST.md)** - Pour suivre votre progression
+
+### Déploiement rapide
+
+#### Backend (Render)
+
+1. Connectez votre repository GitHub à Render
+2. Render détectera automatiquement le fichier `render.yaml`
+3. Configurez les variables d'environnement (voir `DEPLOYMENT.md`)
+4. Déployez
+
+#### Frontend (Vercel)
+
+1. Connectez votre repository GitHub à Vercel
+2. Vercel détectera automatiquement le projet Vite
+3. Configurez la variable d'environnement `VITE_API_BASE_URL` avec l'URL de votre backend Render
+4. Déployez
+
+### Variables d'environnement requises
+
+**Backend (Render)** :
+- `WOLFRAM_APP_ID` (requis)
+- `OPENAI_API_KEY` (requis)
+- `CORS_ORIGINS` (requis - URL du frontend Vercel)
+
+**Frontend (Vercel)** :
+- `VITE_API_BASE_URL` (requis - URL du backend Render avec `/api`)
+
+### CI/CD
+
+Le projet inclut un workflow GitHub Actions (`.github/workflows/ci.yml`) qui :
+- Lint le code frontend et backend
+- Vérifie que les builds fonctionnent
+- S'exécute automatiquement sur chaque push et pull request
+
+### Liens utiles
+
+- 📖 [Guide de déploiement complet](./DEPLOYMENT.md)
+- 🔧 [Configuration backend](./backend/README.md)
+- 🧪 [Guide de test](./TESTING.md)
