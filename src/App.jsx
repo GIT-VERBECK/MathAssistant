@@ -109,15 +109,37 @@ function App() {
       
       if (stream) {
         streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          // Attendre que la vidéo soit prête
-          videoRef.current.onloadedmetadata = () => {
+        console.log('Stream obtenu, configuration de la vidéo...')
+        
+        // Utiliser setTimeout pour s'assurer que le DOM est prêt
+        setTimeout(() => {
+          if (videoRef.current) {
+            console.log('Attribution du stream à la vidéo')
+            videoRef.current.srcObject = stream
+            videoRef.current.play().catch(err => {
+              console.error('Erreur lors du play:', err)
+            })
+            
+            // Afficher la caméra immédiatement
+            setShowCamera(true)
+            
+            // Vérifier que la vidéo fonctionne
+            videoRef.current.onloadedmetadata = () => {
+              console.log('Métadonnées vidéo chargées:', {
+                width: videoRef.current.videoWidth,
+                height: videoRef.current.videoHeight
+              })
+            }
+            
+            videoRef.current.onerror = (err) => {
+              console.error('Erreur vidéo:', err)
+              setCameraError('Erreur lors de l\'affichage de la vidéo.')
+            }
+          } else {
+            console.warn('videoRef.current est null, affichage de la caméra quand même')
             setShowCamera(true)
           }
-        } else {
-          setShowCamera(true)
-        }
+        }, 100)
       }
     } catch (error) {
       console.error('Erreur d\'accès à la caméra:', error)
@@ -150,15 +172,29 @@ function App() {
   }
 
   const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas')
-      canvas.width = videoRef.current.videoWidth
-      canvas.height = videoRef.current.videoHeight
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(videoRef.current, 0, 0)
-      const imageData = canvas.toDataURL('image/png')
-      setCapturedImage(imageData)
-      stopCamera()
+    if (videoRef.current && videoRef.current.readyState >= 2) {
+      try {
+        const canvas = document.createElement('canvas')
+        const video = videoRef.current
+        
+        // Vérifier que la vidéo a des dimensions valides
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(video, 0, 0)
+          const imageData = canvas.toDataURL('image/png')
+          setCapturedImage(imageData)
+          stopCamera()
+        } else {
+          setCameraError('La vidéo n\'est pas encore prête. Veuillez patienter quelques instants.')
+        }
+      } catch (error) {
+        console.error('Erreur lors de la capture:', error)
+        setCameraError('Erreur lors de la capture de la photo.')
+      }
+    } else {
+      setCameraError('La caméra n\'est pas prête. Veuillez attendre quelques instants.')
     }
   }
 
