@@ -118,6 +118,9 @@ async def analyze_problem(
         
         # 2. Résolution avec WolframAlpha
         logger.info("Résolution avec WolframAlpha...")
+        solution = ""
+        raw_steps = []
+        
         try:
             wolfram_result = wolfram_service.solve(extracted_latex)
             solution = wolfram_result.get("solution", "")
@@ -128,13 +131,52 @@ async def analyze_problem(
             else:
                 logger.warning("Aucune solution trouvée par WolframAlpha")
         except Exception as e:
-            logger.warning(f"Erreur WolframAlpha: {str(e)}, utilisation du fallback")
-            # Si WolframAlpha échoue, on utilise un fallback
-            solution = ""
-            raw_steps = []
+            logger.warning(f"Erreur WolframAlpha: {str(e)}, tentative de calcul direct")
+            # Si WolframAlpha échoue, on essaie un calcul direct
+            try:
+                # Convertit le LaTeX en expression calculable
+                import re
+                calc_expr = extracted_latex
+                
+                # Remplace les puissances: 4^{2} -> 4**2, 4^2 -> 4**2
+                calc_expr = re.sub(r'\^{(\d+)}', r'**\1', calc_expr)
+                calc_expr = re.sub(r'\^(\d+)', r'**\1', calc_expr)
+                
+                # Nettoie les autres caractères LaTeX
+                calc_expr = calc_expr.replace('\\', '').replace('{', '').replace('}', '')
+                calc_expr = calc_expr.replace(' ', '')
+                
+                # Calcule directement
+                import math
+                allowed_names = {
+                    k: v for k, v in math.__dict__.items() if not k.startswith("__")
+                }
+                allowed_names.update({'abs': abs, 'round': round})
+                
+                result = eval(calc_expr, {"__builtins__": {}}, allowed_names)
+                
+                if isinstance(result, float):
+                    if result.is_integer():
+                        solution = str(int(result))
+                    else:
+                        solution = str(round(result, 10))
+                else:
+                    solution = str(result)
+                
+                raw_steps = [{
+                    "title": "Calcul direct",
+                    "description": f"Calcul de l'expression: {extracted_latex}",
+                    "formula": f"{extracted_latex} = {solution}",
+                    "explanation": f"Le résultat de {extracted_latex} est {solution}."
+                }]
+                logger.info(f"Calcul direct réussi: {solution}")
+            except Exception as calc_error:
+                logger.warning(f"Calcul direct échoué: {str(calc_error)}")
+                solution = ""
+                raw_steps = []
         
         if not solution and not raw_steps:
-            # Fallback si WolframAlpha n'a pas de résultats
+            # Dernier fallback si tout échoue
             solution = "Résolution disponible"
             raw_steps = [{
                 "title": "Analyse du problème",
