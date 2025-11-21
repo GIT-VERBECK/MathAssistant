@@ -297,14 +297,14 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  background-color: white;
-  color: #00a8ff;
+  background-color:#00a8ff;
+  color: white;
 }
 
 .upload-btn:hover,
 .camera-btn:hover {
-  background-color: #00a8ff;
-  color: white;
+  background-color: white;
+  color: #00a8ff;
 }
 
 .upload-btn:active,
