@@ -13,6 +13,7 @@ function App() {
   const [capturedImage, setCapturedImage] = useState(null)
   const [showCamera, setShowCamera] = useState(false)
   const [cameraError, setCameraError] = useState(null)
+  const [isCameraReady, setIsCameraReady] = useState(false)
   
   // États de traitement
   const [extractedLaTeX, setExtractedLaTeX] = useState(null)
@@ -109,35 +110,62 @@ function App() {
       
       if (stream) {
         streamRef.current = stream
+        setIsCameraReady(false)
         console.log('Stream obtenu, configuration de la vidéo...')
         
         // Utiliser setTimeout pour s'assurer que le DOM est prêt
         setTimeout(() => {
           if (videoRef.current) {
             console.log('Attribution du stream à la vidéo')
-            videoRef.current.srcObject = stream
-            videoRef.current.play().catch(err => {
-              console.error('Erreur lors du play:', err)
-            })
+            const video = videoRef.current
+            video.srcObject = stream
             
             // Afficher la caméra immédiatement
             setShowCamera(true)
             
+            // Démarrer la lecture
+            video.play().then(() => {
+              console.log('Vidéo en lecture')
+            }).catch(err => {
+              console.error('Erreur lors du play:', err)
+            })
+            
             // Vérifier que la vidéo fonctionne
-            videoRef.current.onloadedmetadata = () => {
-              console.log('Métadonnées vidéo chargées:', {
-                width: videoRef.current.videoWidth,
-                height: videoRef.current.videoHeight
-              })
+            const checkVideoReady = () => {
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                console.log('Vidéo prête:', {
+                  width: video.videoWidth,
+                  height: video.videoHeight,
+                  readyState: video.readyState
+                })
+                setIsCameraReady(true)
+              } else {
+                // Réessayer après un court délai
+                setTimeout(checkVideoReady, 100)
+              }
             }
             
-            videoRef.current.onerror = (err) => {
+            video.onloadedmetadata = () => {
+              console.log('Métadonnées vidéo chargées')
+              checkVideoReady()
+            }
+            
+            video.onplaying = () => {
+              console.log('Vidéo en cours de lecture')
+              checkVideoReady()
+            }
+            
+            video.onerror = (err) => {
               console.error('Erreur vidéo:', err)
               setCameraError('Erreur lors de l\'affichage de la vidéo.')
             }
+            
+            // Vérifier immédiatement aussi
+            checkVideoReady()
           } else {
             console.warn('videoRef.current est null, affichage de la caméra quand même')
             setShowCamera(true)
+            setIsCameraReady(true)
           }
         }, 100)
       }
@@ -169,32 +197,52 @@ function App() {
     }
     setShowCamera(false)
     setCameraError(null)
+    setIsCameraReady(false)
   }
 
   const capturePhoto = () => {
-    if (videoRef.current && videoRef.current.readyState >= 2) {
-      try {
+    if (!videoRef.current) {
+      setCameraError('La caméra n\'est pas disponible.')
+      return
+    }
+    
+    const video = videoRef.current
+    
+    try {
+      // Vérifier que la vidéo a des dimensions valides
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
         const canvas = document.createElement('canvas')
-        const video = videoRef.current
-        
-        // Vérifier que la vidéo a des dimensions valides
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0)
+        const imageData = canvas.toDataURL('image/png')
+        setCapturedImage(imageData)
+        stopCamera()
+        console.log('Photo capturée avec succès:', {
+          width: canvas.width,
+          height: canvas.height
+        })
+      } else {
+        // Essayer quand même si la vidéo est visible
+        if (video.readyState >= 1) {
+          // Utiliser des dimensions par défaut
+          const canvas = document.createElement('canvas')
+          canvas.width = 640
+          canvas.height = 480
           const ctx = canvas.getContext('2d')
-          ctx.drawImage(video, 0, 0)
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
           const imageData = canvas.toDataURL('image/png')
           setCapturedImage(imageData)
           stopCamera()
+          console.log('Photo capturée avec dimensions par défaut')
         } else {
           setCameraError('La vidéo n\'est pas encore prête. Veuillez patienter quelques instants.')
         }
-      } catch (error) {
-        console.error('Erreur lors de la capture:', error)
-        setCameraError('Erreur lors de la capture de la photo.')
       }
-    } else {
-      setCameraError('La caméra n\'est pas prête. Veuillez attendre quelques instants.')
+    } catch (error) {
+      console.error('Erreur lors de la capture:', error)
+      setCameraError('Erreur lors de la capture de la photo: ' + error.message)
     }
   }
 
@@ -438,9 +486,19 @@ function App() {
                       ×
                     </button>
                   </div>
-                  <button className="capture-btn" onClick={capturePhoto} aria-label="Prendre une photo">
-                  📹
+                  <button 
+                    className="capture-btn" 
+                    onClick={capturePhoto} 
+                    aria-label="Prendre une photo"
+                    disabled={!isCameraReady && !videoRef.current}
+                  >
+                    {isCameraReady ? '📹' : '⏳'}
                   </button>
+                  {!isCameraReady && !cameraError && (
+                    <p style={{ color: '#666', fontSize: '14px', marginTop: '10px' }}>
+                      Chargement de la caméra...
+                    </p>
+                  )}
                   {cameraError && <p className="camera-error">{cameraError}</p>}
                 </div>
               ) : (
